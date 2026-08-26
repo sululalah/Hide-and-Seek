@@ -79,6 +79,9 @@ input[type="file"] { display:none; }
 .file-name { font-size:0.65rem; color:var(--text3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:180px; }
 .fname { font-size:0.65rem; color:var(--text3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:180px; }
 .row { display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap; }
+.yt-url-input { flex:1; min-width:220px; background:var(--bg2); border:1px solid var(--border); border-radius:2px; color:var(--text); font-family:'FrutigerNeueVariable-Roman',monospace; font-size:0.68rem; padding:0.38rem 0.5rem; outline:none; }
+.yt-url-input:focus { border-color:var(--border2); }
+.yt-url-input::placeholder { color:var(--text3); }
 
 /* ── MOVEMENT TRANSLATOR ── */
 .video-outer { width:100%; aspect-ratio:16/9; background:var(--ink); border:1px solid var(--border); border-radius:4px; overflow:hidden; position:relative; }

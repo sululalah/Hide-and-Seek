@@ -29,7 +29,10 @@
       </div>
       <p>Upload a video to begin</p>
     </div>
-    <div id="zoom-viewport"><video id="video-el" playsinline></video></div>
+    <div id="zoom-viewport">
+      <video id="video-el" playsinline></video>
+      <div id="yt-embed" style="display:none;position:absolute;inset:0;width:100%;height:100%;"></div>
+    </div>
     <div id="zoom-box"></div>
   </div>
   <div class="timeline-wrap" id="timeline-wrap" style="display:none">
@@ -48,6 +51,11 @@
         </label>
         <span class="file-name" id="file-name">No file selected</span>
         <input type="file" id="file-input" accept="video/*">
+      </div>
+      <div class="control-row">
+        <input type="text" id="yt-url-input" class="yt-url-input" placeholder="Paste YouTube URL">
+        <button class="btn" id="yt-load-btn" type="button">Load URL</button>
+        <button class="btn red" id="yt-clear-btn" type="button">Clear</button>
       </div>
     </div>
     <div class="control-cell">
@@ -142,6 +150,15 @@
         <div class="ab-card-title">Brush</div>
         <div class="control-row"><span class="sep">Size</span><input type="range" id="ab-brush-slider" min="4" max="40" step="1" value="14"><span class="value-display" id="ab-brush-display">14px</span></div>
         <div class="control-row"><span class="sep">Fade</span><input type="range" id="ab-fade-slider" min="0" max="20" step="1" value="2"><span class="value-display" id="ab-fade-display">2</span></div>
+        <div class="control-row" style="align-items:center;gap:0.45rem;">
+          <span class="sep">Tracking</span>
+          <select id="ab-track-mode" style="flex:1;min-width:110px;">
+            <option value="stable" selected>Stable</option>
+            <option value="responsive">Responsive</option>
+            <option value="footPriority">Foot-priority</option>
+          </select>
+        </div>
+        <div id="ab-track-mode-hint" style="font-size:0.58rem;color:var(--text3);line-height:1.35;">Stable: smoothest lines and strongest dropout recovery</div>
         <div class="ab-brush-style-grid">
           <button type="button" class="brush-style-btn active" data-style="soft">Soft</button>
           <button type="button" class="brush-style-btn" data-style="ink">Ink</button>
