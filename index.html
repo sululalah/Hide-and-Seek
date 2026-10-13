@@ -10,105 +10,14 @@
 <body>
 
 <nav class="nav">
-  <button class="nav-tab active" data-tab="editor">Movement Translator</button>
-  <button class="nav-tab" data-tab="artboard">Motion Artboard</button>
-  <button class="nav-tab" data-tab="ls">Learning Studio</button>
+  <button class="nav-tab active" data-tab="artboard">Motion Artboard</button>
+  <button class="nav-tab" data-tab="hide">Hide and Seek</button>
 </nav>
 
 <!-- ════════════════════════════════════════════════
-     TAB 1 — MOVEMENT TRANSLATOR
+     TAB  — MOTION ARTBOARD
 ════════════════════════════════════════════════ -->
-<div class="page active" id="tab-editor">
-  <div class="video-outer">
-    <div class="empty-state" id="empty-state">
-      <div class="icon">
-        <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
-          <rect x="1" y="4" width="14" height="14" rx="1.5" stroke="#555" stroke-width="1"/>
-          <path d="M15 9l5-3v10l-5-3V9z" stroke="#555" stroke-width="1" stroke-linejoin="round"/>
-        </svg>
-      </div>
-      <p>Upload a video to begin</p>
-    </div>
-    <div id="zoom-viewport">
-      <video id="video-el" playsinline></video>
-      <div id="yt-embed" style="display:none;position:absolute;inset:0;width:100%;height:100%;"></div>
-    </div>
-    <div id="zoom-box"></div>
-  </div>
-  <div class="timeline-wrap" id="timeline-wrap" style="display:none">
-    <div id="timeline-track">
-      <div id="timeline-progress"></div><div id="loop-region"></div><div id="playhead"></div>
-    </div>
-    <div class="timeline-labels"><span id="tl-current">0:00</span><span id="tl-duration">0:00</span></div>
-  </div>
-  <div class="controls">
-    <div class="control-cell">
-      <div class="control-label">Source</div>
-      <div class="control-row">
-        <label class="btn" for="file-input">
-          <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M6 1v7M3 4l3-3 3 3M1 9v1.5A.5.5 0 001.5 11h9a.5.5 0 00.5-.5V9" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          Choose file
-        </label>
-        <span class="file-name" id="file-name">No file selected</span>
-        <input type="file" id="file-input" accept="video/*">
-      </div>
-      <div class="control-row">
-        <input type="text" id="yt-url-input" class="yt-url-input" placeholder="Paste YouTube URL">
-        <button class="btn" id="yt-load-btn" type="button">Load URL</button>
-        <button class="btn red" id="yt-clear-btn" type="button">Clear</button>
-      </div>
-    </div>
-    <div class="control-cell">
-      <div class="control-label">Playback</div>
-      <div class="control-row">
-        <button class="play-btn" id="play-btn"><span class="play-icon" id="play-icon"></span><span class="pause-icon" id="pause-icon"></span></button>
-      </div>
-    </div>
-    <div class="control-cell full">
-      <div class="control-label">Speed</div>
-      <div class="control-row"><input type="range" id="speed-slider" min="0.1" max="3" step="0.05" value="1"><span class="value-display" id="speed-display">1.00×</span></div>
-    </div>
-    <div class="control-cell full">
-      <div class="control-label">Horizontal Flip</div>
-      <div class="control-row">
-        <div class="toggle-group">
-          <button class="toggle-btn active" id="flip-off">Normal</button>
-          <button class="toggle-btn" id="flip-on">Flipped</button>
-        </div>
-      </div>
-    </div>
-    <div class="control-cell full">
-      <div class="control-label">Loop Region</div>
-      <div class="control-row">
-        <span class="sep">In</span><input class="time-input" type="number" id="loop-in" min="0" step="0.1" placeholder="0.0">
-        <span class="sep">→ Out</span><input class="time-input" type="number" id="loop-out" min="0" step="0.1" placeholder="0.0">
-        <span class="sep">s</span>
-        <button class="btn" id="set-in-btn">Set In</button>
-        <button class="btn" id="set-out-btn">Set Out</button>
-        <button class="btn green" id="loop-btn">Enable Loop</button>
-        <button class="btn red" id="loop-clear-btn" style="display:none">Clear</button>
-        <span class="loop-badge" id="loop-badge">LOOPING</span>
-      </div>
-    </div>
-    <div class="control-cell full">
-      <div class="control-label">Zoom</div>
-      <div class="control-row">
-        <button class="btn" id="zoom-select-btn">Draw Region</button>
-        <button class="btn red" id="zoom-reset-btn">Reset</button>
-        <span class="sep">—</span>
-        <input type="range" id="zoom-slider" min="1" max="5" step="0.1" value="1">
-        <span class="value-display" id="zoom-display">1.0×</span>
-        <span class="zoom-info" id="zoom-info"></span>
-      </div>
-    </div>
-  </div>
-  <div class="statusbar"><div class="status-dot" id="v-status-dot"></div><span id="v-status-text">No video loaded</span></div>
-</div>
-
-<!-- ════════════════════════════════════════════════
-     TAB 2 — MOTION ARTBOARD
-════════════════════════════════════════════════ -->
-<div class="page" id="tab-artboard">
+<div class="page active" id="tab-artboard">
   <div class="ab-mode-bar">
     <button class="ab-mode-btn active" id="ab-mode1-btn">Transcribe movements to Artboard<span class="ab-mode-desc">Camera or video → watercolor painting → export MP4</span></button>
     <button class="ab-mode-btn" id="ab-mode2-btn">Create movements from Artboard Records<span class="ab-mode-desc">Import artboard video → follow ghost lines → export MP4</span></button>
@@ -148,7 +57,7 @@
       </div>
       <div class="ab-card">
         <div class="ab-card-title">Brush</div>
-        <div class="control-row"><span class="sep">Size</span><input type="range" id="ab-brush-slider" min="4" max="40" step="1" value="14"><span class="value-display" id="ab-brush-display">14px</span></div>
+        <div class="control-row"><span class="sep" id="ab-brush-label">Size</span><input type="range" id="ab-brush-slider" min="4" max="40" step="1" value="14"><span class="value-display" id="ab-brush-display">14px</span></div>
         <div class="control-row"><span class="sep">Fade</span><input type="range" id="ab-fade-slider" min="0" max="20" step="1" value="2"><span class="value-display" id="ab-fade-display">2</span></div>
         <div class="control-row" style="align-items:center;gap:0.45rem;">
           <span class="sep">Tracking</span>
@@ -216,6 +125,8 @@
       <div class="ab-card">
         <div class="ab-card-title">Body part colours</div>
         <div class="color-row"><input type="checkbox" id="ab-enable-head" checked style="cursor:pointer;accent-color:var(--accent);flex-shrink:0;"><label class="color-swatch-label" for="ab-enable-head">Head</label><input type="color" id="ab-color-head" value="#e8735a"><code class="ab-hex-display" id="ab-hex-head">#E8735A</code></div>
+        <div class="color-row"><input type="checkbox" id="ab-enable-torso" checked style="cursor:pointer;accent-color:var(--accent);flex-shrink:0;"><label class="color-swatch-label" for="ab-enable-torso">Torso</label><input type="color" id="ab-color-torso" value="#d68a58"><code class="ab-hex-display" id="ab-hex-torso">#D68A58</code></div>
+        <div class="color-row"><input type="checkbox" id="ab-enable-hips" checked style="cursor:pointer;accent-color:var(--accent);flex-shrink:0;"><label class="color-swatch-label" for="ab-enable-hips">Hips</label><input type="color" id="ab-color-hips" value="#c66b83"><code class="ab-hex-display" id="ab-hex-hips">#C66B83</code></div>
         <div class="color-row"><input type="checkbox" id="ab-enable-lhand" checked style="cursor:pointer;accent-color:var(--accent);flex-shrink:0;"><label class="color-swatch-label" for="ab-enable-lhand">Left hand</label><input type="color" id="ab-color-lhand" value="#e87ca0"><code class="ab-hex-display" id="ab-hex-lhand">#E87CA0</code></div>
         <div class="color-row"><input type="checkbox" id="ab-enable-rhand" checked style="cursor:pointer;accent-color:var(--accent);flex-shrink:0;"><label class="color-swatch-label" for="ab-enable-rhand">Right hand</label><input type="color" id="ab-color-rhand" value="#5a9a6a"><code class="ab-hex-display" id="ab-hex-rhand">#5A9A6A</code></div>
         <div class="color-row"><input type="checkbox" id="ab-enable-lfoot" checked style="cursor:pointer;accent-color:var(--accent);flex-shrink:0;"><label class="color-swatch-label" for="ab-enable-lfoot">Left foot</label><input type="color" id="ab-color-lfoot" value="#7a5a9a"><code class="ab-hex-display" id="ab-hex-lfoot">#7A5A9A</code></div>
@@ -241,7 +152,7 @@
       </div>
     </div>
     <div style="display:flex;flex-direction:column;gap:0.75rem;">
-      <div class="panel-label">Artboard</div>
+      <div class="panel-label" id="ab-page-title">Artboard</div>
       <div class="ab-canvas-wrap" id="ab-canvas-wrap">
         <button type="button" class="ab-fullscreen-btn" id="ab-fullscreen-btn" title="Fullscreen artboard">⤢</button>
         <canvas id="ab-canvas"></canvas>
@@ -283,126 +194,6 @@
     </div>
   </div>
   <div class="statusbar"><div class="status-dot" id="ab-status-dot"></div><span id="ab-status-text">Select a source and mode to begin</span></div>
-</div>
-
-<!-- ════════════════════════════════════════════════
-     TAB 3 — LEARNING STUDIO
-════════════════════════════════════════════════ -->
-<div class="page" id="tab-ls">
-  <div class="ls-top">
-    <div class="ls-main-stage">
-      <div class="ls-panel">
-        <div class="panel-label">Reference video</div>
-        <div class="ls-wrap" id="ref-wrap">
-          <div class="ls-idle" id="ref-idle">
-            <svg width="28" height="22" viewBox="0 0 28 22" fill="none"><rect x="1" y="1" width="18" height="20" rx="2" stroke="#555" stroke-width="1.2"/><path d="M19 8l7-4v14l-7-4V8z" stroke="#555" stroke-width="1.2" stroke-linejoin="round"/></svg>
-            <p>Upload a dance video</p>
-          </div>
-          <video id="ref-video" class="ls-vid" playsinline style="display:none"></video>
-          <canvas id="ref-overlay" class="ls-ov" style="display:none"></canvas>
-
-          <div class="ls-camera-overlay" id="cam-wrap">
-            <div class="ls-idle" id="cam-idle">
-              <svg width="28" height="24" viewBox="0 0 28 24" fill="none"><circle cx="14" cy="12" r="4.5" stroke="#555" stroke-width="1.2"/><path d="M2 8A2 2 0 014 6h2a2.5 2.5 0 002.1-1.15L9 3.5A2 2 0 0110.7 2.5h6.6a2 2 0 011.7 1l.9 1.35A2.5 2.5 0 0022 6h2a2 2 0 012 2v11a2 2 0 01-2 2H4a2 2 0 01-2-2V8z" stroke="#555" stroke-width="1.2"/></svg>
-              <p>Start camera to practice</p>
-            </div>
-            <video id="cam-video" class="ls-cam" playsinline autoplay muted style="display:none"></video>
-            <canvas id="guide-overlay" class="ls-ov" style="display:none"></canvas>
-            <canvas id="user-overlay" class="ls-ov" style="display:none"></canvas>
-            <div id="match-flash" style="position:absolute;inset:0;pointer-events:none;opacity:0;background:rgba(90,122,90,0.25);transition:opacity 0.15s;border-radius:12px;z-index:5;"></div>
-          </div>
-        </div>
-        <div class="ls-timeline">
-          <div class="ls-track" id="ref-track">
-            <div class="ls-prog" id="ref-prog"></div>
-            <div class="ls-loop-region" id="ref-loop-region"></div>
-            <div class="ls-ph" id="ref-ph"></div>
-          </div>
-          <div class="ls-tl-labels"><span id="ref-cur">0:00</span><span id="ref-dur">0:00</span></div>
-        </div>
-        <div class="ls-card">
-          <div class="ls-card-title">Video controls</div>
-          <div class="row">
-            <label class="btn" for="ref-file-in"><svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M6 1v7M3 4l3-3 3 3M1 9v1.5A.5.5 0 001.5 11h9a.5.5 0 00.5-.5V9" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/></svg>Upload video</label>
-            <input type="file" id="ref-file-in" accept="video/*">
-            <button class="play-btn" id="ref-play-btn"><span class="pi" id="ref-pi" style="width:0;height:0;border-style:solid;border-width:5px 0 5px 9px;border-color:transparent transparent transparent var(--text);margin-left:2px;"></span><span class="pau" id="ref-pau" style="width:9px;height:11px;border-left:3px solid var(--text);border-right:3px solid var(--text);display:none;"></span></button>
-            <span class="fname" id="ref-fname">No file selected</span>
-          </div>
-          <div class="row"><span class="sep">Speed</span><input type="range" id="ref-speed" min="0.1" max="1.5" step="0.05" value="1"><span class="vd" id="ref-speed-val">1.00×</span></div>
-        </div>
-        <div class="ls-card">
-          <div class="ls-card-title">Select learning segment</div>
-          <div class="row">
-            <span class="sep">In</span><input class="ti" type="number" id="ls-loop-in" min="0" step="0.1" placeholder="0.0">
-            <span class="sep">→ Out</span><input class="ti" type="number" id="ls-loop-out" min="0" step="0.1" placeholder="0.0">
-            <span class="sep">s</span>
-            <button class="btn" id="ls-set-in-btn">Set In</button>
-            <button class="btn" id="ls-set-out-btn">Set Out</button>
-          </div>
-          <div class="row">
-            <button class="btn green" id="ls-loop-btn" disabled>Analyse segment</button>
-            <button class="btn red" id="ls-loop-clear-btn" style="display:none">Clear</button>
-          </div>
-          <span id="ls-segment-info" style="font-size:0.6rem;color:var(--text3);"></span>
-        </div>
-      </div>
-
-      <div class="ls-card ls-stage-actions">
-        <div class="ls-card-title">Practice controls</div>
-        <div class="row">
-          <button class="btn green" id="cam-start-btn">Start Camera Overlay</button>
-          <button class="btn red" id="cam-stop-btn" style="display:none">Hide Camera</button>
-          <button class="btn" id="practice-btn" disabled>▶ Start Practice</button>
-          <button class="btn red" id="practice-stop-btn" style="display:none">■ Stop</button>
-        </div>
-      </div>
-
-      <div class="ls-card">
-        <div class="ls-card-title">Visual guide style</div>
-        <div class="row">
-          <div class="ov-chips">
-            <button class="ov-chip active" data-ov="skeleton">Skeleton</button>
-            <button class="ov-chip" data-ov="silhouette">Silhouette</button>
-          </div>
-        </div>
-        <div class="row"><span class="sep">Guide opacity</span><input type="range" id="guide-opacity" min="10" max="90" step="5" value="45"><span class="vd" id="guide-opacity-val">45%</span></div>
-      </div>
-
-      <div class="guide-strip" id="guide-strip">
-        <canvas id="ls-guide-canvas"></canvas>
-        <div class="guide-strip-label">Current pose guide</div>
-      </div>
-    </div>
-
-    <div class="ls-sidebar">
-      <div class="score-ring-wrap">
-        <div class="score-ring-label">Match score</div>
-        <div class="score-ring">
-          <svg viewBox="0 0 96 96"><circle class="score-ring-bg" cx="48" cy="48" r="40"/><circle class="score-ring-fill" id="score-ring-fill" cx="48" cy="48" r="40" stroke-dasharray="251.3" stroke-dashoffset="251.3"/></svg>
-          <div class="score-ring-num" id="score-num">—</div>
-        </div>
-        <div class="score-ring-pct" id="score-pct-label">waiting for camera</div>
-      </div>
-
-      <div class="fb-badge" id="fb-badge">—</div>
-
-      <div class="challenge-panel">
-        <div class="challenge-title">Body part challenges</div>
-        <div class="challenge-list" id="challenge-list"><!-- built by JS --></div>
-        <div style="font-size:0.6rem;color:var(--text3);margin-top:0.25rem;" id="challenge-progress-msg">Complete each challenge to unlock the next</div>
-      </div>
-
-      <div class="ls-card">
-        <div class="ls-card-title">Session</div>
-        <div class="row" style="justify-content:space-between;"><span class="sep">Best</span><span id="stat-best" style="font-size:0.75rem;color:var(--text);">—</span></div>
-        <div class="row" style="justify-content:space-between;"><span class="sep">Avg</span><span id="stat-avg" style="font-size:0.75rem;color:var(--text);">—</span></div>
-        <div class="row" style="justify-content:space-between;"><span class="sep">Frames</span><span id="stat-frames" style="font-size:0.75rem;color:var(--text);">0</span></div>
-        <button class="btn red" id="reset-stats-btn" style="margin-top:0.2rem;width:100%;justify-content:center;">Reset session</button>
-      </div>
-    </div>
-  </div>
-
-  <div class="statusbar"><div class="sdot" id="ls-sdot"></div><span id="ls-status">Upload a dance video to begin</span></div>
 </div>
 
 <!-- Hidden downscale canvases -->
