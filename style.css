@@ -105,6 +105,10 @@ input[type="file"] { display:none; }
 .ab-mode-btn { flex:1; padding:0.65rem 1rem; font-family:'FrutigerNeueVariable-Roman',monospace; font-size:0.68rem; letter-spacing:0.12em; text-transform:uppercase; cursor:pointer; background:var(--bg2); color:var(--text3); border:none; transition:all 0.15s; text-align:center; line-height:1.5; }
 .ab-mode-btn:hover { background:var(--bg3); color:var(--text2); }
 .ab-mode-btn.active { background:var(--text); color:var(--bg); }
+.presence-mode-btn { flex:1; padding:0.65rem 1rem; font-family:'FrutigerNeueVariable-Roman',monospace; font-size:0.68rem; letter-spacing:0.12em; text-transform:uppercase; cursor:pointer; background:var(--bg2); color:var(--text3); border:none; transition:all 0.15s; text-align:center; line-height:1.5; }
+.presence-mode-btn:hover { background:var(--bg3); color:var(--text2); }
+.presence-mode-btn.active { background:var(--text); color:var(--bg); }
+.is-partner-hidden { display:none !important; }
 .ab-mode-desc { display:block; font-size:0.58rem; letter-spacing:0.06em; text-transform:none; opacity:0.7; margin-top:0.1rem; }
 .ab-layout { display:grid; grid-template-columns:290px 1fr; gap:1rem; align-items:start; }
 .ab-sidebar { display:flex; flex-direction:column; gap:0.75rem; }
@@ -117,6 +121,8 @@ input[type="file"] { display:none; }
 #ab-m2-cam-overlay { display:none; position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
 #ab-pose-overlay { display:none; position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
 #ab-camera-overlay { display:none; position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:2; }
+.presence-camera-overlay { display:none; position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:2; }
+.presence-drawing-overlay { display:block; position:absolute; inset:0; width:100%; height:100%; cursor:crosshair; z-index:3; touch-action:none; }
 .ab-camera-overlay-canvas { opacity:0.4; }
 #ab-rec-overlay { position:absolute; top:8px; right:8px; font-size:0.58rem; letter-spacing:0.12em; color:var(--danger); background:rgba(255,248,240,0.92); padding:0.2rem 0.5rem; border-radius:2px; border:1px solid var(--danger-lt); display:none; z-index:5; }
 .ab-fullscreen-btn { position:absolute; top:8px; left:8px; z-index:6; display:inline-flex; align-items:center; justify-content:center; width:32px; height:32px; border:1px solid var(--border); border-radius:2px; background:rgba(255,248,240,0.9); color:var(--text); cursor:pointer; }

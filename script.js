@@ -9,9 +9,729 @@ document.querySelectorAll('.nav-tab').forEach(t=>{
     t.classList.add('active');
     const page=document.getElementById('tab-'+t.dataset.tab)||document.getElementById('tab-artboard');
     page.classList.add('active');
+    window.dispatchEvent(new CustomEvent('presence-view',{detail:t.dataset.tab==='partner'?'partner':'presence'}));
     window.dispatchEvent(new CustomEvent('artboard-display-mode',{detail:t.dataset.tab==='hide'?'hide':'artboard'}));
   });
 });
+
+(function(){
+  const presencePage=document.getElementById('tab-presence');
+  if(!presencePage) return;
+
+  const modelButtons=[...document.querySelectorAll('.presence-mode-btn')];
+  const sourceButtons={cam:document.getElementById('presence-source-cam'),vid:document.getElementById('presence-source-vid')};
+  const camBtn=document.getElementById('presence-cam-btn');
+  const stopBtn=document.getElementById('presence-stop-btn');
+  const importBtn=document.getElementById('presence-import-btn');
+  const videoInput=document.getElementById('presence-video-input');
+  const video=document.getElementById('presence-video');
+  const feedIdle=document.getElementById('presence-feed-idle');
+  const feedIdleMsg=document.getElementById('presence-feed-idle-msg');
+  const canvas=document.getElementById('presence-main-canvas');
+  const cameraOverlay=document.getElementById('presence-camera-overlay');
+  const drawingOverlay=document.getElementById('presence-drawing-overlay');
+  const cameraOverlayCtx=cameraOverlay?.getContext('2d');
+  const drawingOverlayCtx=drawingOverlay?.getContext('2d');
+  const statusDot=document.getElementById('presence-status-dot');
+  const statusText=document.getElementById('presence-status-text');
+  const presenceCanvasWrap=document.getElementById('presence-canvas-wrap');
+  const presenceOrientationButtons=Array.from(document.querySelectorAll('.presence-ratio-orientation-btn'));
+  const presenceRatioButtons=Array.from(document.querySelectorAll('.presence-ratio-btn'));
+  const sourceMode={cam:'cam',vid:'vid'};
+  let activeSource='cam';
+  let mode='thermal';
+  let stream=null;
+  let segmenter=null;
+  let lut=[];
+  let heatCanvas=null;
+  let heatCtx=null;
+  let acc=null;
+  let lastVideoTime=-1;
+  let presenceRaf=0;
+  let presenceMask=null;
+  let presencePose=null;
+  let presencePoseDetector=null;
+  let presencePoseDetecting=false;
+  let presenceAspectRatio='16:9';
+  let presenceOverlayEnabled=false;
+  let presenceOverlayOpacity=0.4;
+  let presenceDrawTool='draw';
+  let presenceDrawing=false;
+  let presenceDrawPart='head';
+  let presenceCurrentStroke=null;
+  const presenceDrawingStrokes=[];
+  const presenceBodyParts={
+    head:{input:document.getElementById('presence-color-head'),hex:document.getElementById('presence-hex-head'),enable:document.getElementById('presence-enable-head')},
+    rightArm:{input:document.getElementById('presence-color-right-arm'),hex:document.getElementById('presence-hex-right-arm'),enable:document.getElementById('presence-enable-right-arm')},
+    leftArm:{input:document.getElementById('presence-color-left-arm'),hex:document.getElementById('presence-hex-left-arm'),enable:document.getElementById('presence-enable-left-arm')},
+    rightLeg:{input:document.getElementById('presence-color-right-leg'),hex:document.getElementById('presence-hex-right-leg'),enable:document.getElementById('presence-enable-right-leg')},
+    leftLeg:{input:document.getElementById('presence-color-left-leg'),hex:document.getElementById('presence-hex-left-leg'),enable:document.getElementById('presence-enable-left-leg')},
+    hip:{input:document.getElementById('presence-color-hip'),hex:document.getElementById('presence-hex-hip'),enable:document.getElementById('presence-enable-hip')},
+    torso:{input:document.getElementById('presence-color-torso'),hex:document.getElementById('presence-hex-torso'),enable:document.getElementById('presence-enable-torso')},
+  };
+
+  function setPresenceStatus(message, active=false){
+    if(statusText) statusText.textContent=message;
+    if(statusDot) statusDot.classList.toggle('active', active);
+  }
+
+  function buildLUT(){
+    const stops=[
+      [0.00,[0,0,0]],
+      [0.20,[60,0,110]],
+      [0.40,[190,20,60]],
+      [0.60,[255,110,0]],
+      [0.80,[255,220,40]],
+      [1.00,[255,255,255]],
+    ];
+    lut=[];
+    for(let i=0;i<256;i++){
+      const t=i/255;
+      let k=0;
+      while(k<stops.length-2&&t>stops[k+1][0]) k++;
+      const [t0,c0]=stops[k];
+      const [t1,c1]=stops[k+1];
+      const u=(t-t0)/(t1-t0||1);
+      lut.push(c0.map((v,j)=>v+(c1[j]-v)*u));
+    }
+  }
+
+  async function initPresenceSegmenter(){
+    if(segmenter) return;
+    try{
+      const { ImageSegmenter, FilesetResolver } = await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs');
+      const fileset = await FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm');
+      segmenter = await ImageSegmenter.createFromOptions(fileset,{
+        baseOptions:{
+          modelAssetPath:'https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float16/latest/selfie_segmenter.tflite',
+          delegate:'GPU',
+        },
+        runningMode:'VIDEO',
+        outputConfidenceMasks:true,
+        outputCategoryMask:false,
+      });
+      setPresenceStatus('Presence ready — thermal silhouette active', true);
+    }catch(err){
+      console.error(err);
+      setPresenceStatus('Presence model failed to load', false);
+    }
+  }
+
+  function resizePresenceCanvas(){
+    if(!canvas) return;
+    const rect=canvas.getBoundingClientRect();
+    const w=rect.width || canvas.clientWidth || 640;
+    const h=rect.height || canvas.clientHeight || 360;
+    const nextW=Math.max(1,Math.floor(w));
+    const nextH=Math.max(1,Math.floor(h));
+    [canvas,cameraOverlay,drawingOverlay].forEach(el=>{
+      if(el && (el.width!==nextW || el.height!==nextH)){
+        el.width=nextW;
+        el.height=nextH;
+      }
+    });
+    renderPresenceDrawings();
+  }
+
+  function getPresenceCoverRect(srcW,srcH,dstW,dstH){
+    const scale=Math.max(dstW/srcW,dstH/srcH);
+    const drawW=srcW*scale;
+    const drawH=srcH*scale;
+    return {x:(dstW-drawW)/2,y:(dstH-drawH)/2,width:drawW,height:drawH};
+  }
+
+  function renderPresenceCameraOverlay(){
+    if(!cameraOverlay||!cameraOverlayCtx)return;
+    cameraOverlayCtx.clearRect(0,0,cameraOverlay.width,cameraOverlay.height);
+    if(!presenceOverlayEnabled||video.readyState<2)return;
+    const w=cameraOverlay.width,h=cameraOverlay.height;
+    const frame=getPresenceCoverRect(video.videoWidth,video.videoHeight,w,h);
+    cameraOverlayCtx.save();
+    cameraOverlayCtx.globalAlpha=presenceOverlayOpacity;
+    cameraOverlayCtx.translate(w,0);
+    cameraOverlayCtx.scale(-1,1);
+    cameraOverlayCtx.drawImage(video,frame.x,frame.y,frame.width,frame.height);
+    cameraOverlayCtx.restore();
+  }
+
+  function renderPresenceDrawings(){
+    if(!drawingOverlay||!drawingOverlayCtx)return;
+    const w=drawingOverlay.width,h=drawingOverlay.height;
+    drawingOverlayCtx.clearRect(0,0,w,h);
+    presenceDrawingStrokes.forEach(stroke=>{
+      if(stroke.points.length<2)return;
+      const enabled=presenceBodyParts[stroke.part]?.enable;
+      if(enabled&&!enabled.checked)return;
+      const color=getPresencePartColor(stroke.part);
+      drawingOverlayCtx.save();
+      drawingOverlayCtx.globalCompositeOperation=stroke.tool==='eraser'?'destination-out':'source-over';
+      drawingOverlayCtx.strokeStyle=color;
+      drawingOverlayCtx.lineCap='round';
+      drawingOverlayCtx.lineJoin='round';
+      drawingOverlayCtx.lineWidth=stroke.tool==='eraser'?28:18;
+      drawingOverlayCtx.beginPath();
+      stroke.points.forEach((point,index)=>{
+        const x=point.x*w,y=point.y*h;
+        if(index===0)drawingOverlayCtx.moveTo(x,y);else drawingOverlayCtx.lineTo(x,y);
+      });
+      drawingOverlayCtx.stroke();
+      drawingOverlayCtx.restore();
+    });
+  }
+
+  function getPresenceDrawingPoint(event){
+    const rect=drawingOverlay.getBoundingClientRect();
+    return {x:(event.clientX-rect.left)/rect.width,y:(event.clientY-rect.top)/rect.height};
+  }
+
+  function getMaskFrame(){
+    if(!segmenter || !video || !video.videoWidth || !video.videoHeight || video.readyState < 2) return;
+    if(video.currentTime===lastVideoTime) return;
+    lastVideoTime=video.currentTime;
+
+    segmenter.segmentForVideo(video, performance.now(), (result)=>{
+      const mask=result.confidenceMasks[0];
+      if(!mask) return;
+      const w=mask.width;
+      const h=mask.height;
+      const data=mask.getAsFloat32Array();
+      presenceMask={data,w,h};
+
+      if(!heatCanvas || heatCanvas.width!==w || heatCanvas.height!==h){
+        heatCanvas=document.createElement('canvas');
+        heatCanvas.width=w;
+        heatCanvas.height=h;
+        heatCtx=heatCanvas.getContext('2d');
+        acc=new Float32Array(w*h);
+      }
+
+      const imageData=heatCtx.createImageData(w,h);
+      const pixels=imageData.data;
+      const decay=0.8;
+      for(let i=0;i<data.length;i++){
+        const m=data[i];
+        acc[i]=m>acc[i]?acc[i]*0.4+m*0.6:acc[i]*decay+m*(1-decay);
+        const v=Math.min(1,Math.pow(acc[i],1.6));
+        const c=lut[Math.min(255, Math.max(0, Math.floor(v*255)))];
+        const o=i*4;
+        pixels[o]=c[0]; pixels[o+1]=c[1]; pixels[o+2]=c[2]; pixels[o+3]=255*Math.min(1, v*1.8);
+      }
+      heatCtx.putImageData(imageData,0,0);
+      mask.close();
+    });
+  }
+
+
+  function renderThermal(){
+    const ctx=canvas.getContext('2d');
+    const w=canvas.width;
+    const h=canvas.height;
+    ctx.clearRect(0,0,w,h);
+    ctx.fillStyle='#030a12';
+    ctx.fillRect(0,0,w,h);
+    if(!video || !video.videoWidth || !video.videoHeight) return;
+
+    if(!heatCanvas) return;
+
+    ctx.save();
+    ctx.translate(w/2,h/2);
+    ctx.scale(-1,1);
+    const frame=getPresenceCoverRect(heatCanvas.width,heatCanvas.height,w,h);
+    const drawW=frame.width;
+    const drawH=frame.height;
+    const hasPose=!!presencePose;
+    ctx.filter='blur(18px)';
+    ctx.globalAlpha=hasPose?0.22:0.65;
+    ctx.drawImage(heatCanvas,frame.x-w/2,frame.y-h/2,drawW,drawH);
+    ctx.filter='blur(8px)';
+    ctx.globalAlpha=hasPose?0.16:0.52;
+    ctx.drawImage(heatCanvas,frame.x-w/2,frame.y-h/2,drawW,drawH);
+    ctx.filter='blur(2px)';
+    ctx.globalCompositeOperation='screen';
+    ctx.globalAlpha=hasPose?0.2:0.6;
+    ctx.drawImage(heatCanvas,frame.x-w/2,frame.y-h/2,drawW,drawH);
+    ctx.restore();
+
+    renderPresenceThermalColorWash();
+    renderPresencePoseOverlay();
+  }
+
+  function hexToRgb(hex){
+    const raw=hex.replace('#','');
+    const value=raw.length===3?raw.split('').map(ch=>ch+ch).join(''):raw;
+    const num=parseInt(value,16);
+    return { r:(num>>16)&255, g:(num>>8)&255, b:num&255 };
+  }
+
+  function mixHex(a,b,t){
+    const A=hexToRgb(a),B=hexToRgb(b);
+    const mix=(v1,v2)=>Math.round(v1+(v2-v1)*t);
+    return `rgb(${mix(A.r,B.r)}, ${mix(A.g,B.g)}, ${mix(A.b,B.b)})`;
+  }
+
+  function hexToRgba(hex,alpha){
+    const rgb=hexToRgb(hex);
+    return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
+  }
+
+  function setPresenceColorLabels(){
+    Object.values(presenceBodyParts).forEach(({input,hex})=>{if(input&&hex) hex.textContent=input.value.toUpperCase();});
+  }
+
+  function isPresencePartEnabled(key){
+    const entry=presenceBodyParts[key];
+    if(!entry||!entry.enable) return true;
+    return entry.enable.checked;
+  }
+
+  function getPresencePartColor(key){
+    const entry=presenceBodyParts[key];
+    if(!entry||!entry.input) return '#ffffff';
+    return entry.input.value;
+  }
+
+  function drawPresenceSegment(ctx,start,end,startColor,endColor,width,glow=20){
+    const grad=ctx.createLinearGradient(start.x,start.y,end.x,end.y);
+    grad.addColorStop(0,startColor);
+    grad.addColorStop(0.7,mixHex(startColor,endColor,0.5));
+    grad.addColorStop(1,endColor);
+    ctx.save();
+    ctx.lineCap='round';
+    ctx.lineJoin='round';
+    ctx.lineWidth=width;
+    ctx.strokeStyle=grad;
+    ctx.shadowBlur=glow;
+    ctx.shadowColor=startColor;
+    ctx.beginPath();
+    ctx.moveTo(start.x,start.y);
+    ctx.lineTo(end.x,end.y);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawPresenceCircle(ctx,center,radius,color,edgeColor,width=2){
+    const glow = ctx.createRadialGradient(center.x,center.y,radius*0.2,center.x,center.y,radius*1.4);
+    glow.addColorStop(0,color);
+    glow.addColorStop(0.72,mixHex(color,edgeColor,0.4));
+    glow.addColorStop(1,edgeColor);
+    ctx.save();
+    ctx.beginPath();
+    ctx.fillStyle=glow;
+    ctx.arc(center.x,center.y,radius,0,Math.PI*2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.lineWidth=width;
+    ctx.strokeStyle=ctx.createRadialGradient(center.x,center.y,radius*0.5,center.x,center.y,radius*1.3);
+    ctx.strokeStyle=glow;
+    ctx.arc(center.x,center.y,radius,0,Math.PI*2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function renderPresenceThermalColorWash(){
+    if(!presencePose || !video || !video.videoWidth || !video.videoHeight || !canvas) return;
+    const ctx=canvas.getContext('2d');
+    const w=canvas.width;
+    const h=canvas.height;
+    const keypoints=presencePose.keypoints||[];
+    const getPoint=(name)=>{
+      const kp=keypoints.find(p=>p.name===name || p.part===name);
+      const score=Number(kp?.score ?? kp?.confidence ?? 0);
+      if(!kp || !Number.isFinite(kp.x) || !Number.isFinite(kp.y) || score < 0.25) return null;
+      const frame=getPresenceCoverRect(video.videoWidth,video.videoHeight,w,h);
+      return {
+        x:frame.x+(kp.x/video.videoWidth)*frame.width-w/2,
+        y:frame.y+(kp.y/video.videoHeight)*frame.height-h/2
+      };
+    };
+
+    const nose=getPoint('nose');
+    const leftShoulder=getPoint('left_shoulder');
+    const rightShoulder=getPoint('right_shoulder');
+    const leftElbow=getPoint('left_elbow');
+    const rightElbow=getPoint('right_elbow');
+    const leftWrist=getPoint('left_wrist');
+    const rightWrist=getPoint('right_wrist');
+    const leftHip=getPoint('left_hip');
+    const rightHip=getPoint('right_hip');
+    const leftKnee=getPoint('left_knee');
+    const rightKnee=getPoint('right_knee');
+    const leftAnkle=getPoint('left_ankle');
+    const rightAnkle=getPoint('right_ankle');
+    if(!nose && !leftShoulder && !rightShoulder && !leftHip && !rightHip) return;
+
+    const shoulderSpan=(leftShoulder && rightShoulder)
+      ? Math.hypot(rightShoulder.x-leftShoulder.x, rightShoulder.y-leftShoulder.y)
+      : Math.min(w,h)*0.24;
+    const torsoWidth=Math.max(30, shoulderSpan*0.42);
+    const limbWidth=Math.max(24, shoulderSpan*0.3);
+    const legWidth=Math.max(26, shoulderSpan*0.34);
+
+    ctx.save();
+    ctx.translate(w/2,h/2);
+    ctx.scale(-1,1);
+    ctx.globalCompositeOperation='screen';
+    ctx.globalAlpha=0.66;
+
+    if(isPresencePartEnabled('leftArm') && leftShoulder){
+      drawPresenceSegment(ctx,leftShoulder,leftElbow||leftWrist||leftHip,hexToRgba(getPresencePartColor('leftArm'),0.72),hexToRgba(getPresencePartColor('leftArm'),0.72),limbWidth,30);
+    }
+    if(isPresencePartEnabled('rightArm') && rightShoulder){
+      drawPresenceSegment(ctx,rightShoulder,rightElbow||rightWrist||rightHip,hexToRgba(getPresencePartColor('rightArm'),0.72),hexToRgba(getPresencePartColor('rightArm'),0.72),limbWidth,30);
+    }
+    if(isPresencePartEnabled('leftLeg') && leftHip){
+      drawPresenceSegment(ctx,leftHip,leftKnee||leftAnkle||leftHip,hexToRgba(getPresencePartColor('leftLeg'),0.7),hexToRgba(getPresencePartColor('leftLeg'),0.72),legWidth,32);
+      if(leftKnee&&leftAnkle)drawPresenceSegment(ctx,leftKnee,leftAnkle,hexToRgba(getPresencePartColor('leftLeg'),0.7),hexToRgba(getPresencePartColor('leftLeg'),0.72),legWidth*0.86,30);
+    }
+    if(isPresencePartEnabled('rightLeg') && rightHip){
+      drawPresenceSegment(ctx,rightHip,rightKnee||rightAnkle||rightHip,hexToRgba(getPresencePartColor('rightLeg'),0.7),hexToRgba(getPresencePartColor('rightLeg'),0.72),legWidth,32);
+      if(rightKnee&&rightAnkle)drawPresenceSegment(ctx,rightKnee,rightAnkle,hexToRgba(getPresencePartColor('rightLeg'),0.7),hexToRgba(getPresencePartColor('rightLeg'),0.72),legWidth*0.86,30);
+    }
+    if(isPresencePartEnabled('torso') && leftShoulder && rightShoulder){
+      drawPresenceSegment(ctx,leftShoulder,rightShoulder,hexToRgba(getPresencePartColor('torso'),0.65),hexToRgba(getPresencePartColor('torso'),0.6),torsoWidth*0.55,24);
+    }
+    if(isPresencePartEnabled('hip') && leftHip && rightHip){
+      drawPresenceSegment(ctx,leftHip,rightHip,hexToRgba(getPresencePartColor('hip'),0.72),hexToRgba(getPresencePartColor('hip'),0.72),torsoWidth*0.62,24);
+    }
+    if(isPresencePartEnabled('torso') && leftShoulder && leftHip){
+      drawPresenceSegment(ctx,leftShoulder,leftHip,hexToRgba(getPresencePartColor('torso'),0.66),hexToRgba(getPresencePartColor('torso'),0.62),torsoWidth,32);
+    }
+    if(isPresencePartEnabled('torso') && rightShoulder && rightHip){
+      drawPresenceSegment(ctx,rightShoulder,rightHip,hexToRgba(getPresencePartColor('torso'),0.66),hexToRgba(getPresencePartColor('torso'),0.62),torsoWidth,32);
+    }
+    if(isPresencePartEnabled('head') && nose){
+      drawPresenceCircle(ctx,nose,Math.max(26, shoulderSpan*0.44),hexToRgba(getPresencePartColor('head'),0.74),hexToRgba(getPresencePartColor('hip'),0.68),2);
+    }
+    if(isPresencePartEnabled('hip') && (leftHip || rightHip)){
+      const hipCenter=leftHip && rightHip ? {x:(leftHip.x+rightHip.x)/2,y:(leftHip.y+rightHip.y)/2} : leftHip || rightHip;
+      drawPresenceCircle(ctx,hipCenter,Math.max(22, shoulderSpan*0.24),hexToRgba(getPresencePartColor('hip'),0.7),hexToRgba(getPresencePartColor('leftLeg'),0.62),2);
+    }
+
+    ctx.restore();
+  }
+
+  function renderPresencePoseOverlay(){
+    if(!presencePose || !video || !video.videoWidth || !video.videoHeight || !canvas) return;
+    const ctx=canvas.getContext('2d');
+    const w=canvas.width; const h=canvas.height;
+    const pose=presencePose;
+    const keypoints=pose.keypoints||[];
+    const getPoint=(name)=>{
+      const kp=keypoints.find(p=>p.name===name || p.part===name);
+      const score=Number(kp?.score ?? kp?.confidence ?? 0);
+      if(!kp || !Number.isFinite(kp.x) || !Number.isFinite(kp.y) || score < 0.25) return null;
+      const frame=getPresenceCoverRect(video.videoWidth,video.videoHeight,w,h);
+      return {
+        x:frame.x+(kp.x/video.videoWidth)*frame.width-w/2,
+        y:frame.y+(kp.y/video.videoHeight)*frame.height-h/2
+      };
+    };
+    const nose=getPoint('nose');
+    const leftShoulder=getPoint('left_shoulder');
+    const rightShoulder=getPoint('right_shoulder');
+    const leftElbow=getPoint('left_elbow');
+    const rightElbow=getPoint('right_elbow');
+    const leftWrist=getPoint('left_wrist');
+    const rightWrist=getPoint('right_wrist');
+    const leftHip=getPoint('left_hip');
+    const rightHip=getPoint('right_hip');
+    const leftKnee=getPoint('left_knee');
+    const rightKnee=getPoint('right_knee');
+    const leftAnkle=getPoint('left_ankle');
+    const rightAnkle=getPoint('right_ankle');
+    if(!nose && !leftShoulder && !rightShoulder && !leftHip && !rightHip) return;
+
+    ctx.save();
+    ctx.translate(w/2,h/2);
+    ctx.scale(-1,1);
+
+    if(isPresencePartEnabled('leftArm') && leftShoulder) drawPresenceSegment(ctx,leftShoulder,leftElbow||leftWrist||leftHip,getPresencePartColor('leftArm'),getPresencePartColor('leftArm'),10,18);
+    if(isPresencePartEnabled('rightArm') && rightShoulder) drawPresenceSegment(ctx,rightShoulder,rightElbow||rightWrist||rightHip,getPresencePartColor('rightArm'),getPresencePartColor('rightArm'),10,18);
+    if(isPresencePartEnabled('leftLeg') && leftHip) drawPresenceSegment(ctx,leftHip,leftKnee||leftAnkle||leftHip,getPresencePartColor('leftLeg'),getPresencePartColor('leftLeg'),12,18);
+    if(isPresencePartEnabled('leftLeg')&&leftKnee&&leftAnkle)drawPresenceSegment(ctx,leftKnee,leftAnkle,getPresencePartColor('leftLeg'),getPresencePartColor('leftLeg'),10,16);
+    if(isPresencePartEnabled('rightLeg') && rightHip) drawPresenceSegment(ctx,rightHip,rightKnee||rightAnkle||rightHip,getPresencePartColor('rightLeg'),getPresencePartColor('rightLeg'),12,18);
+    if(isPresencePartEnabled('rightLeg')&&rightKnee&&rightAnkle)drawPresenceSegment(ctx,rightKnee,rightAnkle,getPresencePartColor('rightLeg'),getPresencePartColor('rightLeg'),10,16);
+    if(isPresencePartEnabled('hip') && leftShoulder && rightShoulder) drawPresenceSegment(ctx,leftShoulder,rightShoulder,getPresencePartColor('hip'),getPresencePartColor('head'),8,12);
+    if(isPresencePartEnabled('hip') && leftHip && rightHip) drawPresenceSegment(ctx,leftHip,rightHip,getPresencePartColor('hip'),getPresencePartColor('hip'),8,12);
+
+    if(isPresencePartEnabled('head') && nose){
+      const headRadius=Math.max(18, Math.min(w*0.12, h*0.12));
+      drawPresenceCircle(ctx,nose,headRadius,getPresencePartColor('head'),getPresencePartColor('hip'),2);
+    }
+    if(isPresencePartEnabled('hip') && (leftHip || rightHip)){
+      const hipCenter = leftHip && rightHip ? {x:(leftHip.x+rightHip.x)/2,y:(leftHip.y+rightHip.y)/2} : leftHip || rightHip;
+      drawPresenceCircle(ctx,hipCenter,Math.max(14, Math.min(w*0.06, h*0.06)),getPresencePartColor('hip'),getPresencePartColor('leftLeg'),2);
+    }
+    ctx.restore();
+  }
+
+  function renderLineMode(){
+    const ctx=canvas.getContext('2d');
+    const w=canvas.width;
+    const h=canvas.height;
+    ctx.clearRect(0,0,w,h);
+    ctx.fillStyle='#05070b';
+    ctx.fillRect(0,0,w,h);
+    if(!video || !video.videoWidth || !video.videoHeight) return;
+    ctx.save();
+    ctx.translate(w/2,h/2);
+    ctx.scale(-1,1);
+    ctx.filter='grayscale(1) brightness(0.55) contrast(1.25)';
+    const frame=getPresenceCoverRect(video.videoWidth,video.videoHeight,w,h);
+    ctx.drawImage(video,frame.x-w/2,frame.y-h/2,frame.width,frame.height);
+    ctx.restore();
+
+    if(!presenceMask) return;
+    const maskCanvas=document.createElement('canvas');
+    maskCanvas.width=presenceMask.w;
+    maskCanvas.height=presenceMask.h;
+    const mctx=maskCanvas.getContext('2d');
+    const data=mctx.createImageData(presenceMask.w,presenceMask.h);
+    const px=data.data;
+    for(let i=0;i<presenceMask.data.length;i++){
+      const v=presenceMask.data[i];
+      const alpha=Math.min(255, Math.max(0, Math.round(v*255 * 1.6)));
+      const o=i*4;
+      px[o]=255; px[o+1]=255; px[o+2]=255; px[o+3]=alpha;
+    }
+    mctx.putImageData(data,0,0);
+
+    ctx.save();
+    ctx.globalAlpha=0.85;
+    ctx.filter='contrast(1.4)';
+    const maskFrame=getPresenceCoverRect(maskCanvas.width,maskCanvas.height,w,h);
+    ctx.drawImage(maskCanvas,maskFrame.x,maskFrame.y,maskFrame.width,maskFrame.height);
+    ctx.restore();
+
+    renderPresencePoseOverlay();
+  }
+
+  function presenceRenderLoop(){
+    cancelAnimationFrame(presenceRaf);
+    getMaskFrame();
+    updatePresencePose();
+    if(mode==='thermal') renderThermal();
+    else renderLineMode();
+    renderPresenceCameraOverlay();
+    renderPresenceDrawings();
+    if(video && video.readyState >= 2 && !video.paused){
+      presenceRaf=requestAnimationFrame(presenceRenderLoop);
+    }
+  }
+
+  function setPresenceMode(nextMode){
+    mode=nextMode;
+    modelButtons.forEach(btn=>btn.classList.toggle('active', btn.dataset.presenceMode===mode));
+    if(mode==='thermal') setPresenceStatus('Thermal silhouette mode', true);
+    else setPresenceStatus('Line mode', true);
+    presenceRenderLoop();
+  }
+
+  function setPresenceOrientation(orientation){
+    const next=orientation||'horizontal';
+    presenceOrientationButtons.forEach(btn=>btn.classList.toggle('active', btn.dataset.orientation===next));
+    presenceRatioButtons.forEach(btn=>{
+      const matches=btn.dataset.orientation===next;
+      btn.classList.toggle('is-hidden', !matches);
+      btn.classList.toggle('active', matches && btn.dataset.ratio===presenceAspectRatio);
+    });
+  }
+
+  function setPresenceCanvasRatio(ratio){
+    const [w,h]=ratio.split(':').map(Number);
+    if(!w||!h) return;
+    presenceAspectRatio=ratio;
+    const isVertical=['9:16','4:5','5:7','3:4','3:5','2:3'].includes(ratio);
+    setPresenceOrientation(isVertical?'vertical':'horizontal');
+    if(presenceCanvasWrap) presenceCanvasWrap.style.aspectRatio=`${w}/${h}`;
+    requestAnimationFrame(resizePresenceCanvas);
+  }
+
+  function switchSource(nextSource){
+    activeSource=nextSource;
+    sourceButtons.cam.classList.toggle('active', nextSource===sourceMode.cam);
+    sourceButtons.vid.classList.toggle('active', nextSource===sourceMode.vid);
+    importBtn.style.display=nextSource===sourceMode.vid ? 'inline-flex' : 'none';
+    camBtn.style.display=nextSource===sourceMode.cam ? 'inline-flex' : 'none';
+    stopBtn.style.display='none';
+    if(nextSource===sourceMode.cam){
+      feedIdleMsg.textContent='Start camera or import video';
+    } else {
+      feedIdleMsg.textContent='Import a video to analyse';
+    }
+  }
+
+  function initPresencePoseDetector(){
+    if(presencePoseDetector || !window.ml5 || !ml5.bodyPose) return;
+    presencePoseDetector=ml5.bodyPose(modelReady);
+    function modelReady(){
+      setPresenceStatus('Pose overlay ready', true);
+    }
+  }
+
+  function updatePresencePose(){
+    if(!presencePoseDetector || presencePoseDetecting || !video || video.readyState < 2) return;
+    presencePoseDetecting=true;
+    presencePoseDetector.detect(video,(results,err)=>{
+      presencePoseDetecting=false;
+      if(err){
+        return;
+      }
+      if(results && results.length) presencePose=results[0];
+      else presencePose=null;
+    });
+  }
+
+  async function startPresenceCamera(){
+    try{
+      const streamObj = await navigator.mediaDevices.getUserMedia({video:{width:640,height:480,facingMode:'user'},audio:false});
+      stream = streamObj;
+      video.srcObject=stream;
+      video.style.display='block';
+      feedIdle.style.display='none';
+      camBtn.style.display='none';
+      stopBtn.style.display='inline-flex';
+      await video.play();
+      await initPresenceSegmenter();
+      initPresencePoseDetector();
+      setPresenceStatus('Presence camera live', true);
+      presenceRenderLoop();
+    }catch(err){
+      console.error(err);
+      setPresenceStatus('Camera unavailable', false);
+    }
+  }
+
+  function stopPresenceCamera(){
+    if(stream){
+      stream.getTracks().forEach(track=>track.stop());
+      stream=null;
+    }
+    if(video){
+      video.pause();
+      video.srcObject=null;
+    }
+    video.style.display='none';
+    presencePose=null;
+    presencePoseDetecting=false;
+    feedIdle.style.display='flex';
+    camBtn.style.display='inline-flex';
+    stopBtn.style.display='none';
+    setPresenceStatus('Camera stopped', false);
+  }
+
+  function onVideoFileSelected(event){
+    const file=event.target.files[0];
+    if(!file) return;
+    const url=URL.createObjectURL(file);
+    video.src = url;
+    video.style.display='block';
+    feedIdle.style.display='none';
+    video.onloadedmetadata=async ()=>{
+      await initPresenceSegmenter();
+      initPresencePoseDetector();
+      video.play();
+      setPresenceStatus('Imported video ready', true);
+      presenceRenderLoop();
+    };
+  }
+
+  Object.entries(presenceBodyParts).forEach(([key,part])=>{
+    if(part.input){ part.input.addEventListener('input',()=>{ setPresenceColorLabels(); if(presenceRenderLoop) presenceRenderLoop(); }); }
+    if(part.enable){ part.enable.addEventListener('change',()=>{ if(presenceRenderLoop) presenceRenderLoop(); }); }
+  });
+
+  presenceOrientationButtons.forEach(button=>button.addEventListener('click',()=>setPresenceOrientation(button.dataset.orientation)));
+  presenceRatioButtons.forEach(button=>button.addEventListener('click',()=>setPresenceCanvasRatio(button.dataset.ratio)));
+
+  if(drawingOverlay){
+    drawingOverlay.addEventListener('pointerdown',event=>{
+      presenceDrawing=true;
+      drawingOverlay.setPointerCapture(event.pointerId);
+      presenceCurrentStroke={tool:presenceDrawTool,part:presenceDrawPart,points:[getPresenceDrawingPoint(event)]};
+      presenceDrawingStrokes.push(presenceCurrentStroke);
+      renderPresenceDrawings();
+    });
+    drawingOverlay.addEventListener('pointermove',event=>{
+      if(!presenceDrawing||!presenceCurrentStroke)return;
+      presenceCurrentStroke.points.push(getPresenceDrawingPoint(event));
+      renderPresenceDrawings();
+    });
+    const endPresenceDrawing=()=>{presenceDrawing=false;presenceCurrentStroke=null;};
+    drawingOverlay.addEventListener('pointerup',endPresenceDrawing);
+    drawingOverlay.addEventListener('pointercancel',endPresenceDrawing);
+  }
+
+  const presenceOverlayToggle=document.getElementById('presence-overlay-toggle-btn');
+  const presenceOverlayStatus=document.getElementById('presence-overlay-status');
+  const presenceOverlayOpacityInput=document.getElementById('presence-overlay-opacity');
+  const presenceOverlayOpacityDisp=document.getElementById('presence-overlay-opacity-disp');
+  const presenceDrawBtn=document.getElementById('presence-draw-btn');
+  const presenceEraserBtn=document.getElementById('presence-eraser-btn');
+  const presenceClearBtn=document.getElementById('presence-clear-drawings-btn');
+  const presenceDrawPartSelect=document.getElementById('presence-draw-part');
+
+  if(presenceOverlayToggle){presenceOverlayToggle.addEventListener('click',()=>{
+    presenceOverlayEnabled=!presenceOverlayEnabled;
+    if(cameraOverlay)cameraOverlay.style.display=presenceOverlayEnabled?'block':'none';
+    presenceOverlayToggle.textContent=presenceOverlayEnabled?'Hide overlay':'Show overlay';
+    if(presenceOverlayStatus)presenceOverlayStatus.textContent=presenceOverlayEnabled?'On':'Off';
+    renderPresenceCameraOverlay();
+  });}
+  if(presenceOverlayOpacityInput){presenceOverlayOpacityInput.addEventListener('input',()=>{
+    presenceOverlayOpacity=Math.max(0,Math.min(100,parseInt(presenceOverlayOpacityInput.value,10)))/100;
+    if(presenceOverlayOpacityDisp)presenceOverlayOpacityDisp.textContent=Math.round(presenceOverlayOpacity*100)+'%';
+    renderPresenceCameraOverlay();
+  });}
+  if(presenceDrawPartSelect){presenceDrawPartSelect.addEventListener('change',()=>{presenceDrawPart=presenceDrawPartSelect.value;});}
+  if(presenceDrawBtn){presenceDrawBtn.addEventListener('click',()=>{presenceDrawTool='draw';presenceDrawBtn.classList.add('active');presenceEraserBtn?.classList.remove('active');});}
+  if(presenceEraserBtn){presenceEraserBtn.addEventListener('click',()=>{presenceDrawTool='eraser';presenceEraserBtn.classList.add('active');presenceDrawBtn?.classList.remove('active');});}
+  if(presenceClearBtn){presenceClearBtn.addEventListener('click',()=>{presenceDrawingStrokes.length=0;renderPresenceDrawings();});}
+
+  modelButtons.forEach(button=>button.addEventListener('click',()=>setPresenceMode(button.dataset.presenceMode)));
+  sourceButtons.cam.addEventListener('click',()=>switchSource(sourceMode.cam));
+  sourceButtons.vid.addEventListener('click',()=>switchSource(sourceMode.vid));
+  camBtn.addEventListener('click',startPresenceCamera);
+  stopBtn.addEventListener('click',stopPresenceCamera);
+  videoInput.addEventListener('change',onVideoFileSelected);
+
+  if(window.ResizeObserver && presenceCanvasWrap){
+    const presenceResizeObserver=new ResizeObserver(()=>resizePresenceCanvas());
+    presenceResizeObserver.observe(presenceCanvasWrap);
+  }else{
+    window.addEventListener('resize',resizePresenceCanvas);
+  }
+
+  buildLUT();
+  setPresenceColorLabels();
+  setPresenceCanvasRatio('16:9');
+  resizePresenceCanvas();
+  renderPresenceCameraOverlay();
+  renderPresenceDrawings();
+  switchSource(sourceMode.cam);
+  setPresenceMode('thermal');
+
+  const presenceLayout=presencePage.querySelector('.ab-layout');
+  const presenceStatusbar=presencePage.querySelector('.statusbar');
+  const partnerHost=document.getElementById('partner-presence-host');
+  window.addEventListener('presence-view',event=>{
+    const isPartner=event.detail==='partner';
+    document.querySelectorAll('.presence-only-control').forEach(control=>control.classList.toggle('is-partner-hidden',isPartner));
+    if(isPartner){
+      if(presenceLayout&&partnerHost)partnerHost.appendChild(presenceLayout);
+      if(cameraOverlay)cameraOverlay.style.display='none';
+      if(drawingOverlay)drawingOverlay.style.pointerEvents='none';
+      setPresenceMode('lines');
+    }else{
+      if(presenceLayout&&presenceStatusbar)presencePage.insertBefore(presenceLayout,presenceStatusbar);
+      if(drawingOverlay)drawingOverlay.style.pointerEvents='auto';
+      setPresenceMode('thermal');
+    }
+    resizePresenceCanvas();
+  });
+
+  window.addEventListener('resize', resizePresenceCanvas);
+})();
 
 // ════════════════════════════════════════════════════
 //  MOVEMENT TRANSLATOR

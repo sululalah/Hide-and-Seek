@@ -10,8 +10,10 @@
 <body>
 
 <nav class="nav">
-  <button class="nav-tab active" data-tab="artboard">Motion Artboard</button>
-  <button class="nav-tab" data-tab="hide">Hide and Seek</button>
+  <button class="nav-tab active" data-tab="artboard">Motion Artboard-lines</button>
+  <button class="nav-tab" data-tab="hide">Motion Artboard-chunks</button>
+  <button class="nav-tab" data-tab="presence">Presence</button>
+  <button class="nav-tab" data-tab="partner">Partner</button>
 </nav>
 
 <!-- ════════════════════════════════════════════════
@@ -57,8 +59,8 @@
       </div>
       <div class="ab-card">
         <div class="ab-card-title">Brush</div>
-        <div class="control-row"><span class="sep" id="ab-brush-label">Size</span><input type="range" id="ab-brush-slider" min="4" max="40" step="1" value="14"><span class="value-display" id="ab-brush-display">14px</span></div>
-        <div class="control-row"><span class="sep">Fade</span><input type="range" id="ab-fade-slider" min="0" max="20" step="1" value="2"><span class="value-display" id="ab-fade-display">2</span></div>
+        <div class="control-row"><span class="sep" id="ab-brush-label">Size</span><input type="range" id="ab-brush-slider" min="4" max="200" step="1" value="14"><span class="value-display" id="ab-brush-display">14px</span></div>
+        <div class="control-row"><span class="sep">Fade</span><input type="range" id="ab-fade-slider" min="0" max="100" step="1" value="2"><span class="value-display" id="ab-fade-display">2</span></div>
         <div class="control-row" style="align-items:center;gap:0.45rem;">
           <span class="sep">Tracking</span>
           <select id="ab-track-mode" style="flex:1;min-width:110px;">
@@ -196,6 +198,83 @@
   <div class="statusbar"><div class="status-dot" id="ab-status-dot"></div><span id="ab-status-text">Select a source and mode to begin</span></div>
 </div>
 
+<div class="page" id="tab-presence">
+  <div class="ab-mode-bar">
+    <button class="presence-mode-btn active" data-presence-mode="thermal">Thermal silhouette</button>
+  </div>
+  <div class="ab-layout">
+    <div class="ab-sidebar">
+      <div class="panel-label">Input source</div>
+      <div class="source-tabs">
+        <button class="source-tab active" id="presence-source-cam">Live Camera</button>
+        <button class="source-tab" id="presence-source-vid">Import Video</button>
+      </div>
+      <div class="ab-cam-wrap">
+        <div class="ab-feed-idle" id="presence-feed-idle">
+          <svg width="28" height="24" viewBox="0 0 28 24" fill="none"><circle cx="14" cy="12" r="4.5" stroke="#555" stroke-width="1.2"/><path d="M2 8A2 2 0 014 6h2a2.5 2.5 0 002.1-1.15L9 3.5A2 2 0 0110.7 2.5h6.6a2 2 0 011.7 1l.9 1.35A2.5 2.5 0 0022 6h2a2 2 0 012 2v11a2 2 0 01-2 2H4a2 2 0 01-2-2V8z" stroke="#555" stroke-width="1.2"/></svg>
+          <p id="presence-feed-idle-msg">Start camera or import video</p>
+        </div>
+        <video id="presence-video" autoplay muted playsinline style="display:none;width:100%;height:100%;object-fit:cover;transform:scaleX(-1);"></video>
+        <canvas id="presence-canvas" style="display:block;width:100%;height:100%;"></canvas>
+      </div>
+      <div class="control-row" style="flex-wrap:wrap;gap:0.5rem;">
+        <button class="btn green" id="presence-cam-btn">Start Camera</button>
+        <button class="btn red" id="presence-stop-btn" style="display:none">Stop Camera</button>
+        <label class="btn" id="presence-import-btn" for="presence-video-input" style="display:none"><svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M6 1v7M3 4l3-3 3 3M1 9v1.5A.5.5 0 001.5 11h9a.5.5 0 00.5-.5V9" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/></svg>Import video</label>
+        <input type="file" id="presence-video-input" accept="video/*">
+      </div>
+      <div class="ab-card">
+        <div class="ab-card-title">Canvas ratio</div>
+        <div class="ab-ratio-orientations">
+          <button type="button" class="ratio-orientation-btn active presence-ratio-orientation-btn" data-orientation="horizontal">Horizontal</button>
+          <button type="button" class="ratio-orientation-btn presence-ratio-orientation-btn" data-orientation="vertical">Vertical</button>
+        </div>
+        <div class="ab-ratio-detail-grid">
+          <button type="button" class="ratio-btn active presence-ratio-btn" data-ratio="16:9" data-orientation="horizontal">16:9</button>
+          <button type="button" class="ratio-btn presence-ratio-btn" data-ratio="5:4" data-orientation="horizontal">5:4</button>
+          <button type="button" class="ratio-btn presence-ratio-btn" data-ratio="7:5" data-orientation="horizontal">7:5</button>
+          <button type="button" class="ratio-btn presence-ratio-btn" data-ratio="4:3" data-orientation="horizontal">4:3</button>
+          <button type="button" class="ratio-btn presence-ratio-btn" data-ratio="5:3" data-orientation="horizontal">5:3</button>
+          <button type="button" class="ratio-btn presence-ratio-btn" data-ratio="3:2" data-orientation="horizontal">3:2</button>
+          <button type="button" class="ratio-btn presence-ratio-btn is-hidden" data-ratio="9:16" data-orientation="vertical">9:16</button>
+          <button type="button" class="ratio-btn presence-ratio-btn is-hidden" data-ratio="4:5" data-orientation="vertical">4:5</button>
+          <button type="button" class="ratio-btn presence-ratio-btn is-hidden" data-ratio="5:7" data-orientation="vertical">5:7</button>
+          <button type="button" class="ratio-btn presence-ratio-btn is-hidden" data-ratio="3:4" data-orientation="vertical">3:4</button>
+          <button type="button" class="ratio-btn presence-ratio-btn is-hidden" data-ratio="3:5" data-orientation="vertical">3:5</button>
+          <button type="button" class="ratio-btn presence-ratio-btn is-hidden" data-ratio="2:3" data-orientation="vertical">2:3</button>
+        </div>
+      </div>
+     
+      <div class="ab-card presence-only-control">
+        <div class="ab-card-title">Body part colours</div>
+        <div class="color-row"><input type="checkbox" id="presence-enable-head" checked><label class="color-swatch-label" for="presence-enable-head">Head</label><input type="color" id="presence-color-head" value="#e8735a"><code class="ab-hex-display" id="presence-hex-head">#E8735A</code></div>
+        <div class="color-row"><input type="checkbox" id="presence-enable-right-arm" checked><label class="color-swatch-label" for="presence-enable-right-arm">Right arm</label><input type="color" id="presence-color-right-arm" value="#eab08d"><code class="ab-hex-display" id="presence-hex-right-arm">#EAB08D</code></div>
+        <div class="color-row"><input type="checkbox" id="presence-enable-left-arm" checked><label class="color-swatch-label" for="presence-enable-left-arm">Left arm</label><input type="color" id="presence-color-left-arm" value="#d0a3ff"><code class="ab-hex-display" id="presence-hex-left-arm">#D0A3FF</code></div>
+        <div class="color-row"><input type="checkbox" id="presence-enable-right-leg" checked><label class="color-swatch-label" for="presence-enable-right-leg">Right leg</label><input type="color" id="presence-color-right-leg" value="#5a9a6a"><code class="ab-hex-display" id="presence-hex-right-leg">#5A9A6A</code></div>
+        <div class="color-row"><input type="checkbox" id="presence-enable-left-leg" checked><label class="color-swatch-label" for="presence-enable-left-leg">Left leg</label><input type="color" id="presence-color-left-leg" value="#7a5a9a"><code class="ab-hex-display" id="presence-hex-left-leg">#7A5A9A</code></div>
+        <div class="color-row"><input type="checkbox" id="presence-enable-hip" checked><label class="color-swatch-label" for="presence-enable-hip">Hip</label><input type="color" id="presence-color-hip" value="#c66b83"><code class="ab-hex-display" id="presence-hex-hip">#C66B83</code></div>
+        <div class="color-row"><input type="checkbox" id="presence-enable-torso" checked><label class="color-swatch-label" for="presence-enable-torso">Torso</label><input type="color" id="presence-color-torso" value="#d68a58"><code class="ab-hex-display" id="presence-hex-torso">#D68A58</code></div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:0.75rem;flex:1;">
+      <div class="panel-label" id="presence-page-title">Artboard</div>
+      <div class="ab-canvas-wrap" id="presence-canvas-wrap" style="aspect-ratio:16/9;">
+        <canvas id="presence-main-canvas" style="display:block;width:100%;height:100%;"></canvas>
+        <canvas id="presence-camera-overlay" class="presence-camera-overlay" aria-label="Camera and body-part drawing overlay"></canvas>
+        <canvas id="presence-drawing-overlay" class="presence-drawing-overlay" aria-label="Draw body parts"></canvas>
+      </div>
+    </div>
+  </div>
+  <div class="statusbar"><div class="status-dot" id="presence-status-dot"></div><span id="presence-status-text">Ready for presence tracking</span></div>
+</div>
+
+<div class="page" id="tab-partner">
+  <div class="ab-mode-bar">
+    <button class="presence-mode-btn active" data-presence-mode="lines">Line mode</button>
+  </div>
+  <div id="partner-presence-host"></div>
+</div>
+
 <!-- Hidden downscale canvases -->
 <canvas id="ref-scale-c" style="display:none"></canvas>
 <canvas id="cam-scale-c" style="display:none"></canvas>
@@ -203,6 +282,8 @@
 <script src="https://unpkg.com/ml5@1/dist/ml5.min.js"></script>
 <script src="p5.brush.js"></script>
 <script src="script.js"></script>
+<script src="https://unpkg.com/ml5@1/dist/ml5.js"></script>
+
 
 </body>
 </html>
